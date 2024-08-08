@@ -28,21 +28,21 @@ func Decompress(data io.Reader) ([]byte, error) {
 	compressionMethod := token & 0xf0
 	switch compressionMethod {
 	case methodLZ4:
-		var compressed = make([]byte, compressedLength)
+		var buffer = buffers.Get().([]byte)
+		var bufferMaxLen = int(max(compressedLength, decompressedLength))
 
-		var decompressed = decompressedBuffer.Get().([]byte)
-		if len(decompressed) < int(decompressedLength) {
-			decompressed = make([]byte, decompressedLength)
+		if len(buffer) < bufferMaxLen {
+			buffer = make([]byte, bufferMaxLen)
 		}
-		defer decompressedBuffer.Put(decompressed)
+		defer buffers.Put(buffer)
 
-		if _, err := data.Read(compressed); err != nil {
+		if _, err := data.Read(buffer[:compressedLength]); err != nil {
 			return nil, err
 		}
 
-		_, err = lz4.UncompressBlock(compressed, decompressed)
+		_, err = lz4.UncompressBlock(buffer, buffer)
 
-		return decompressed, err
+		return buffer, err
 	case methodUncompressed:
 		var compressed = make([]byte, compressedLength)
 		if _, err := data.Read(compressed); err != nil {
@@ -55,7 +55,7 @@ func Decompress(data io.Reader) ([]byte, error) {
 	}
 }
 
-var decompressedBuffer = sync.Pool{
+var buffers = sync.Pool{
 	New: func() any { return make([]byte, 0) },
 }
 
@@ -64,4 +64,5 @@ const (
 	methodUncompressed = 1 << (iota + 4)
 	methodLZ4
 )
+
 
