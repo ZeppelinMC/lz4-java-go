@@ -4,11 +4,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/pierrec/lz4/v4"
 )
 
-// Decompressed a lz4-java block
+// Decompress an lz4-java block. The data returned is only safe to use until the next operation
 func Decompress(data io.Reader) ([]byte, error) {
 	var header [21]byte
 	_, err := data.Read(header[:])
@@ -27,8 +28,13 @@ func Decompress(data io.Reader) ([]byte, error) {
 	compressionMethod := token & 0xf0
 	switch compressionMethod {
 	case methodLZ4:
-		var decompressed = make([]byte, decompressedLength)
 		var compressed = make([]byte, compressedLength)
+
+		var decompressed = decompressedBuffer.Get().([]byte)
+		if len(decompressed) < int(decompressedLength) {
+			decompressed = make([]byte, decompressedLength)
+		}
+		defer decompressedBuffer.Put(decompressed)
 
 		if _, err := data.Read(compressed); err != nil {
 			return nil, err
@@ -49,8 +55,13 @@ func Decompress(data io.Reader) ([]byte, error) {
 	}
 }
 
+var decompressedBuffer = sync.Pool{
+	New: func() any { return make([]byte, 0) },
+}
+
 const magic = "LZ4Block"
 const (
 	methodUncompressed = 1 << (iota + 4)
 	methodLZ4
 )
+
