@@ -46,7 +46,7 @@ func Decompress(data io.Reader) ([]byte, error) {
 	case methodUncompressed:
 		var buffer = buffers.Get().([]byte)
 
-		if len(buffer) < compressedLength {
+		if len(buffer) < int(compressedLength) {
 			buffer = make([]byte, compressedLength)
 		}
 		defer buffers.Put(buffer)
