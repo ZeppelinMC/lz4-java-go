@@ -28,40 +28,47 @@ func Decompress(data io.Reader) ([]byte, error) {
 	compressionMethod := token & 0xf0
 	switch compressionMethod {
 	case methodLZ4:
-		var buffer = buffers.Get().([]byte)
-		var bufferMaxLen = int(max(compressedLength, decompressedLength))
-
-		if len(buffer) < bufferMaxLen {
-			buffer = make([]byte, bufferMaxLen)
+		var compressed = compressedBuffers.Get().([]byte)
+		if len(compressed) < int(compressedLength) {
+			compressed = make([]byte, compressedLength)
 		}
-		defer buffers.Put(buffer)
+		defer compressedBuffers.Put(compressed)
 
-		if _, err := data.Read(buffer[:compressedLength]); err != nil {
+		var decompressed = decompressedBuffers.Get().([]byte)
+		if len(decompressed) < int(decompressedLength) {
+			decompressed = make([]byte, decompressedLength)
+		}
+		defer decompressedBuffers.Put(decompressed)
+
+		if _, err := data.Read(compressed[:compressedLength]); err != nil {
 			return nil, err
 		}
 
-		_, err = lz4.UncompressBlock(buffer, buffer)
+		_, err = lz4.UncompressBlock(compressed[:compressedLength], decompressed[:decompressedLength])
 
-		return buffer, err
+		return decompressed[:decompressedLength], err
 	case methodUncompressed:
-		var buffer = buffers.Get().([]byte)
-
-		if len(buffer) < int(compressedLength) {
-			buffer = make([]byte, compressedLength)
+		var compressed = compressedBuffers.Get().([]byte)
+		if len(compressed) < int(compressedLength) {
+			compressed = make([]byte, compressedLength)
 		}
-		defer buffers.Put(buffer)
-		
-		if _, err := data.Read(buffer[:compressedLength]); err != nil {
+		defer compressedBuffers.Put(compressed)
+
+		if _, err := data.Read(compressed); err != nil {
 			return nil, err
 		}
 
-		return buffer[:compressedLength], nil
+		return compressed[:compressedLength], nil
 	default:
 		return nil, fmt.Errorf("unknown compression method %d", compressionMethod)
 	}
 }
 
-var buffers = sync.Pool{
+var decompressedBuffers = sync.Pool{
+	New: func() any { return make([]byte, 0) },
+}
+
+var compressedBuffers = sync.Pool{
 	New: func() any { return make([]byte, 0) },
 }
 
@@ -70,5 +77,6 @@ const (
 	methodUncompressed = 1 << (iota + 4)
 	methodLZ4
 )
+
 
 
