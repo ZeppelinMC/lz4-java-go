@@ -1,4 +1,4 @@
-module github.com/ZeppelinMC/lz4-java-go
+module github.com/zeppelinmc/lz4-java-go
 
 go 1.22.5
 
