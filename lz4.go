@@ -44,12 +44,18 @@ func Decompress(data io.Reader) ([]byte, error) {
 
 		return buffer, err
 	case methodUncompressed:
-		var compressed = make([]byte, compressedLength)
-		if _, err := data.Read(compressed); err != nil {
+		var buffer = buffers.Get().([]byte)
+
+		if len(buffer) < compressedLength {
+			buffer = make([]byte, compressedLength)
+		}
+		defer buffers.Put(buffer)
+		
+		if _, err := data.Read(buffer[:compressedLength]); err != nil {
 			return nil, err
 		}
 
-		return compressed, nil
+		return buffer[:compressedLength], nil
 	default:
 		return nil, fmt.Errorf("unknown compression method %d", compressionMethod)
 	}
